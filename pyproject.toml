@@ -1,0 +1,16 @@
+[project]
+name = "grok-telegram"
+version = "0.1.0"
+description = "Telegram bridge to the Grok Build CLI, with a localhost push endpoint for cron alerts"
+readme = "README.md"
+requires-python = ">=3.12"
+license = "MIT"
+authors = [{ name = "Nick Bell" }]
+keywords = ["grok", "grok-build", "telegram", "bot", "cli", "xai"]
+
+[project.urls]
+Homepage = "https://github.com/NickBell123/grok-telegram"
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]

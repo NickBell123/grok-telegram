@@ -1,0 +1,81 @@
+#!/usr/bin/env python3
+"""Tiny CLI that POSTs text to the grok-telegram push endpoint.
+
+Reads PUSH_TOKEN and PUSH_URL from an env file (default ~/.grok-telegram/env,
+override with $TG_PUSH_ENV_FILE). PUSH_URL defaults to http://127.0.0.1:8788/push.
+
+Usage:
+  echo "msg" | tg-push-grok
+  tg-push-grok --title "Daily brief" --file /tmp/brief.md
+  tg-push-grok --chat-id 9999 "inline text"
+"""
+import argparse
+import os
+import sys
+import urllib.request
+import json
+from pathlib import Path
+
+
+def load_env_file(path: Path) -> dict:
+    out: dict[str, str] = {}
+    if not path.exists():
+        return out
+    for line in path.read_text().splitlines():
+        line = line.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        k, v = line.split("=", 1)
+        out[k.strip()] = v.strip()
+    return out
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser()
+    parser.add_argument("text", nargs="?", help="inline text; otherwise read stdin or --file")
+    parser.add_argument("--title", help="optional title prepended as a bolded line")
+    parser.add_argument("--file", help="read text from file")
+    parser.add_argument("--chat-id", help="override default chat id")
+    args = parser.parse_args()
+
+    env_path = Path(os.environ.get("TG_PUSH_ENV_FILE", os.path.expanduser("~/.grok-telegram/env")))
+    env = load_env_file(env_path)
+    token = env.get("PUSH_TOKEN") or os.environ.get("PUSH_TOKEN")
+    url = env.get("PUSH_URL") or os.environ.get("PUSH_URL", "http://127.0.0.1:8788/push")
+    if not token:
+        print("error: PUSH_TOKEN not set", file=sys.stderr)
+        return 2
+
+    if args.file:
+        body = Path(args.file).read_text()
+    elif args.text:
+        body = args.text
+    else:
+        body = sys.stdin.read()
+    if args.title:
+        body = f"*{args.title}*\n\n{body}"
+
+    payload = {"text": body}
+    if args.chat_id:
+        payload["chat_id"] = args.chat_id
+
+    req = urllib.request.Request(
+        url,
+        method="POST",
+        data=json.dumps(payload).encode(),
+        headers={
+            "Content-Type": "application/json",
+            "Authorization": f"Bearer {token}",
+        },
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            print(resp.read().decode())
+        return 0
+    except Exception as e:
+        print(f"error: {e}", file=sys.stderr)
+        return 1
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

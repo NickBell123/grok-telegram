@@ -1,0 +1,21 @@
+[Unit]
+Description=Grok Telegram bridge
+After=network-online.target
+Wants=network-online.target
+StartLimitIntervalSec=0
+
+[Service]
+Type=simple
+EnvironmentFile=%h/.grok-telegram/env
+WorkingDirectory=%h/grok-telegram
+# network-online.target only promises a link, not working resolution, so at boot
+# the first get_me() can die on NXDOMAIN. Wait for DNS before starting; give up
+# after ~60s and start anyway, since Restart= still covers a longer outage.
+ExecStartPre=/bin/sh -c 'for i in $(seq 1 30); do getent hosts api.telegram.org >/dev/null 2>&1 && exit 0; sleep 2; done; exit 0'
+ExecStart=%h/grok-telegram/.venv/bin/python -m grok_telegram
+TimeoutStartSec=120
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=default.target
