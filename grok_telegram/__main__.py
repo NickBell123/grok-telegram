@@ -63,8 +63,8 @@ async def _main() -> None:
         speech=speech,
     )
 
-    async def push_send(chat_id: str, text: str) -> int:
-        return await bot.send(chat_id, text)
+    async def push_send(chat_id: str, text: str, parse_mode: str | None = None) -> int:
+        return await bot.send(chat_id, text, parse_mode=parse_mode)
 
     push_app = build_app(
         push_token=cfg.push_token,

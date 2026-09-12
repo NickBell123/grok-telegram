@@ -36,6 +36,7 @@ def main() -> int:
     parser.add_argument("--title", help="optional title prepended as a bolded line")
     parser.add_argument("--file", help="read text from file")
     parser.add_argument("--chat-id", help="override default chat id")
+    parser.add_argument("--markdown", action="store_true", help="render body as markdown")
     args = parser.parse_args()
 
     env_path = Path(os.environ.get("TG_PUSH_ENV_FILE", os.path.expanduser("~/.grok-telegram/env")))
@@ -52,10 +53,13 @@ def main() -> int:
         body = args.text
     else:
         body = sys.stdin.read()
-    if args.title:
-        body = f"*{args.title}*\n\n{body}"
-
     payload = {"text": body}
+    # The server renders markdown (and bolds the title); prepending *title*
+    # here would only reach Telegram as literal asterisks.
+    if args.title:
+        payload["title"] = args.title
+    if args.title or args.markdown:
+        payload["markdown"] = True
     if args.chat_id:
         payload["chat_id"] = args.chat_id
 
