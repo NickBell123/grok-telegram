@@ -3,7 +3,10 @@ from typing import Awaitable, Callable
 
 from aiohttp import web
 
-SendFn = Callable[[str, str], Awaitable[int]]
+from grok_telegram.richtext import markdown_to_telegram_html
+
+# parse_mode is optional so existing plain-text callers keep working.
+SendFn = Callable[..., Awaitable[int]]
 
 
 def _chunks(text: str, n: int) -> list[str]:
@@ -31,10 +34,21 @@ def build_app(
         if not isinstance(text, str) or not text:
             return web.json_response({"ok": False, "error": "text required"}, status=400)
         chat_id = body.get("chat_id") or default_chat_id
+        # Opt-in markdown: cron callers post GFM, which reached Telegram with
+        # literal ** because nothing converted it. Chunk on the source text so
+        # a tag can't be split, then convert each chunk independently.
+        markdown = bool(body.get("markdown"))
+        title = body.get("title")
+        if markdown and isinstance(title, str) and title:
+            text = f"**{title}**\n\n{text}"
         ids = []
         for chunk in _chunks(text, max_chars):
-            mid = await send(str(chat_id), chunk)
-            ids.append(mid)
+            if not markdown:
+                # Unchanged plain path: no parse_mode, so a fake send that
+                # takes only (chat_id, text) keeps working.
+                ids.append(await send(str(chat_id), chunk))
+                continue
+            ids.append(await send(str(chat_id), markdown_to_telegram_html(chunk), "HTML"))
         return web.json_response({"ok": True, "message_ids": ids})
 
     app = web.Application()
